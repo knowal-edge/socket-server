@@ -5,8 +5,20 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const io = require("socket.io")(4001);
 const axios = require("axios");
+var redis = require('redis');
+var client = redis.createClient();
+
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
+
+client.on('connect', function() {
+  console.log('Redis client connected');
+});
+
+client.on('error', function (err) {
+  console.log('Something went wrong ' + err);
+});
+
 
 var app = express();
 
@@ -29,8 +41,17 @@ const getApiAndEmit = async socket => {
     const res = await axios.get(
       "https://dweet.io/get/latest/dweet/for/socketThingname"
     ); // Getting the data from Dweeti.io
-    socket.emit("FromAPI", res.data.with[0].content.Temperature); // Emitting a new message. It will be consumed by the client
-    console.log("sddsds"+res.data.with[0].content.Temperature);
+    //localstorage using redis cache
+    client.set('temp',res.data.with[0].content.Temperature, redis.print);
+    client.get('temp', function (error, result) {
+      if (error) {
+          console.log(error);
+          throw error;
+      }
+      socket.emit("FromAPI", result); // Emitting a new message. It will be consumed by the client
+      console.log('GET result ->' + result);
+  });
+   
   } catch (error) {
     console.error(`Error: ${error.code}`);
   }
